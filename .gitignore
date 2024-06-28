@@ -1,0 +1,51 @@
+# Scala
+*.class
+*.log
+*.cache
+*.settings/
+*.project
+*.idea/
+*.classpath
+
+# sbt specific
+target/
+lib_managed/
+src_managed/
+project/target/
+project/project/
+.history
+.cache
+
+# IntelliJ IDEA
+*.iml
+.idea/
+.idea_modules/
+*.ipr
+*.iws
+out/
+
+# Mac OS X
+.DS_Store
+
+# Eclipse
+.metadata
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.loadpath
+
+# Vim
+*.swp
+*~
+
+# VS Code
+.vscode/
+
+# Log files
+logs/
+*.log
+
+# sbt build cache
+target/streams/

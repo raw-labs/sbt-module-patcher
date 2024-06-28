@@ -1,40 +1,60 @@
-import sbt._
-import sbt.Keys._
-import java.io._
-import java.nio.file._
-import java.util.jar._
-import scala.collection.JavaConverters._
+import sbt.*
+import sbt.Keys.*
+
+import java.io.*
+import java.nio.file.*
+import java.util.jar.*
+import scala.collection.JavaConverters.*
 import java.security.MessageDigest
-import java.nio.file.{Files, Paths}
+import java.nio.file.Files
 import java.nio.file.StandardOpenOption.{CREATE, WRITE}
 
 object SbtModulePatcher extends AutoPlugin {
 
   private val SBT_MODULE_PATCHER_VERSION_KEY = "Sbt-Module-Patcher-Version"
-  private val SBT_MODULE_PATCHER_VERSION_VALUE = "1"
+  private val SBT_MODULE_PATCHER_VERSION_VALUE = "2"
 
-  override def trigger = allRequirements
+  object autoImport {
+    val patchDependencies =
+      taskKey[Unit]("Patch compile dependencies in the project classpath")
 
-  override def requires = plugins.JvmPlugin
+    implicit class ProjectOps(p: Project) {
 
-  override lazy val projectSettings = Seq(
-    update := {
-      val log = streams.value.log
-      val result = update.value
-      modifyDownloadedJars(result, log)
-      result
-    }
-  )
-
-  private def modifyDownloadedJars(updateReport: UpdateReport, log: Logger): Unit = {
-    val jarFiles = updateReport.allFiles.filter(_.getName.endsWith(".jar"))
-    jarFiles.foreach { jarFile =>
-      if (!isModule(jarFile, log)) {
-        modifyJar(jarFile, log)
-        updateChecksums(jarFile, log)
+      def doPatchDependencies(): Project = {
+        p.settings(
+          inConfig(Compile)(patchDependenciesSettings),
+        )
       }
+
+      private def patchDependenciesSettings: Seq[Setting[_]] = Seq(
+        patchDependencies := {
+          val log = streams.value.log
+          val classpath = dependencyClasspath.value
+          val jarFiles =
+            classpath.map(_.data).filter(_.getName.endsWith(".jar"))
+
+          log.info("Test if it runs")
+
+          jarFiles.foreach { jarFile =>
+            log.info(s"Checking file ${jarFile.getName}")
+            if (!isModule(jarFile, log)) {
+              modifyJar(jarFile, log)
+              updateChecksums(jarFile, log)
+            }
+          }
+        },
+        compile := (compile dependsOn patchDependencies).value
+      )
     }
   }
+
+  import autoImport._
+
+  override def projectSettings: Seq[Setting[_]] = Seq(
+    patchDependencies := {
+      // This is a default implementation for the task, but it won't be used directly.
+    }
+  )
 
   private def isModule(jarFile: File, log: Logger): Boolean = {
     if (!jarFile.getName.contains("_2.12")) {
@@ -47,22 +67,27 @@ object SbtModulePatcher extends AutoPlugin {
     // Check if module-info.class exists
     if (entries.exists(_.getName == "module-info.class")) {
       jar.close()
-      log.info(s"JAR file ${jarFile.getName} is already a module (module-info.class found)")
+      log.info(
+        s"JAR file ${jarFile.getName} is already a module (module-info.class found)")
       return true
     }
 
     // Check if Automatic-Module-Name exists in the manifest
     val manifest = jar.getManifest
-    if (manifest != null && manifest.getMainAttributes.getValue("Automatic-Module-Name") != null) {
+    if (manifest != null && manifest.getMainAttributes.getValue(
+          "Automatic-Module-Name") != null) {
       jar.close()
-      log.debug(s"JAR file ${jarFile.getName} is already a module (Automatic-Module-Name found in manifest)")
+      log.debug(
+        s"JAR file ${jarFile.getName} is already a module (Automatic-Module-Name found in manifest)")
       return true
     }
 
     // Check if SBT_MODULE_PATCHER_VERSION_KEY exists in the manifest and matches the current version
-    if (manifest != null && manifest.getMainAttributes.getValue(SBT_MODULE_PATCHER_VERSION_KEY) == SBT_MODULE_PATCHER_VERSION_VALUE) {
+    if (manifest != null && manifest.getMainAttributes.getValue(
+          SBT_MODULE_PATCHER_VERSION_KEY) == SBT_MODULE_PATCHER_VERSION_VALUE) {
       jar.close()
-      log.debug(s"JAR file ${jarFile.getName} was already patched by SbtModulePatcher version $SBT_MODULE_PATCHER_VERSION_VALUE")
+      log.debug(
+        s"JAR file ${jarFile.getName} was already patched by SbtModulePatcher version $SBT_MODULE_PATCHER_VERSION_VALUE")
       return true
     }
 
@@ -72,7 +97,9 @@ object SbtModulePatcher extends AutoPlugin {
 
   private def modifyJar(jarFile: File, log: Logger): Unit = {
     val tempFile = File.createTempFile("temp", ".jar")
-    Files.copy(jarFile.toPath, tempFile.toPath, StandardCopyOption.REPLACE_EXISTING)
+    Files.copy(jarFile.toPath,
+               tempFile.toPath,
+               StandardCopyOption.REPLACE_EXISTING)
 
     val jar = new JarFile(tempFile)
     val entries = jar.entries().asScala
@@ -85,11 +112,15 @@ object SbtModulePatcher extends AutoPlugin {
     } else {
       new Manifest()
     }
-    val moduleName = jarFile.getName.substring(0, jarFile.getName.indexOf("_2.12")).replaceAll("-", ".").replaceAll("_", ".")
+    val moduleName = jarFile.getName
+      .substring(0, jarFile.getName.indexOf("_2.12"))
+      .replaceAll("-", ".")
+      .replaceAll("_", ".")
     val attrs = manifestOut.getMainAttributes
     attrs.putValue("Automatic-Module-Name", moduleName)
     // Handy if we need to "migrate and re-generate" in the future.
-    attrs.putValue(SBT_MODULE_PATCHER_VERSION_KEY, SBT_MODULE_PATCHER_VERSION_VALUE)
+    attrs.putValue(SBT_MODULE_PATCHER_VERSION_KEY,
+                   SBT_MODULE_PATCHER_VERSION_VALUE)
     jos.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"))
     manifestOut.write(jos)
     jos.closeEntry()
@@ -107,18 +138,22 @@ object SbtModulePatcher extends AutoPlugin {
     jar.close()
 
     // Replace original JAR with modified JAR
-    Files.move(tempJar.toPath, jarFile.toPath, StandardCopyOption.REPLACE_EXISTING)
-    log.info(s"Modified JAR file ${jarFile.getName} by adding Automatic-Module-Name: $moduleName")
+    Files.move(tempJar.toPath,
+               jarFile.toPath,
+               StandardCopyOption.REPLACE_EXISTING)
+    log.info(
+      s"Modified JAR file ${jarFile.getName} by adding Automatic-Module-Name: $moduleName")
   }
-
 
   private def updateChecksums(jarFile: File, log: Logger): Unit = {
     val algorithms = Seq("SHA-1", "MD5")
     algorithms.foreach { algorithm =>
       val checksum = calculateChecksum(jarFile, algorithm)
-      val checksumFile = new File(jarFile.getAbsolutePath + "." + algorithm.toLowerCase.replace("-", ""))
+      val checksumFile = new File(
+        jarFile.getAbsolutePath + "." + algorithm.toLowerCase.replace("-", ""))
       Files.write(checksumFile.toPath, checksum.getBytes, CREATE, WRITE)
-      log.info(s"Updated checksum for ${jarFile.getName}: $algorithm = $checksum")
+      log.info(
+        s"Updated checksum for ${jarFile.getName}: $algorithm = $checksum")
     }
   }
 

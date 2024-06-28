@@ -14,6 +14,4 @@ version := "0.0.1"
 
 scalaVersion := "2.12.18"
 
-libraryDependencies += "io.get-coursier" %% "coursier" % "2.1.10"
-
 publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
