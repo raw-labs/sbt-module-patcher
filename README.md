@@ -90,4 +90,4 @@ By incorporating this plugin into your sbt build process, you can ensure that yo
 
 ---
 
-Feel free to [reach out](miguel@raw-labs.com) if you encounter any issues or have any questions regarding the `sbt-module-patcher` plugin.
+Feel free to [reach out](mailto:miguel@raw-labs.com) if you encounter any issues or have any questions regarding the `sbt-module-patcher` plugin.
