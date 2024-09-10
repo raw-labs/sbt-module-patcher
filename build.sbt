@@ -7,7 +7,7 @@ ThisBuild / credentials += Credentials(
   sys.env.getOrElse("GITHUB_TOKEN", "")
 )
 
-moduleName := "sbt-module-patcher"
+name := "sbt-module-patcher"
 
 homepage := Some(url("https://www.raw-labs.com/"))
 
