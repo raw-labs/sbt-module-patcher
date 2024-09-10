@@ -11,7 +11,7 @@ name := "sbt-module-patcher"
 
 homepage := Some(url("https://www.raw-labs.com/"))
 
-organization := "com.raw-labs"
+organization := "com.raw-labs.sbt"
 
 organizationName := "RAW Labs SA"
 
