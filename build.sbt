@@ -1,5 +1,12 @@
 sbtPlugin := true
 
+ThisBuild / credentials += Credentials(
+  "GitHub Package Registry",
+  "maven.pkg.github.com",
+  "raw-labs",
+  sys.env.getOrElse("GITHUB_TOKEN", "")
+)
+
 moduleName := "sbt-module-patcher"
 
 homepage := Some(url("https://www.raw-labs.com/"))
