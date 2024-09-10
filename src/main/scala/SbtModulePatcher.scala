@@ -1,10 +1,10 @@
-import sbt.*
-import sbt.Keys.*
+import sbt._
+import sbt.Keys._
 
-import java.io.*
-import java.nio.file.*
-import java.util.jar.*
-import scala.collection.JavaConverters.*
+import java.io._
+import java.nio.file._
+import java.util.jar._
+import scala.collection.JavaConverters._
 import java.security.MessageDigest
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption.{CREATE, WRITE}
@@ -33,10 +33,7 @@ object SbtModulePatcher extends AutoPlugin {
           val jarFiles =
             classpath.map(_.data).filter(_.getName.endsWith(".jar"))
 
-          log.info("Test if it runs")
-
           jarFiles.foreach { jarFile =>
-            log.info(s"Checking file ${jarFile.getName}")
             if (!isModule(jarFile, log)) {
               modifyJar(jarFile, log)
               updateChecksums(jarFile, log)
@@ -57,9 +54,11 @@ object SbtModulePatcher extends AutoPlugin {
   )
 
   private def isModule(jarFile: File, log: Logger): Boolean = {
-    if (!jarFile.getName.contains("_2.12")) {
+    // Support both Scala 2.12 and 2.13
+    if (!jarFile.getName.contains("_2.12") && !jarFile.getName.contains("_2.13")) {
       return true
     }
+    log.debug(s"Analyzing file ${jarFile.getName}...")
 
     val jar = new JarFile(jarFile)
     val entries = jar.entries().asScala
@@ -67,7 +66,7 @@ object SbtModulePatcher extends AutoPlugin {
     // Check if module-info.class exists
     if (entries.exists(_.getName == "module-info.class")) {
       jar.close()
-      log.info(
+      log.debug(
         s"JAR file ${jarFile.getName} is already a module (module-info.class found)")
       return true
     }
@@ -91,6 +90,8 @@ object SbtModulePatcher extends AutoPlugin {
       return true
     }
 
+    log.debug("File ${jarFile.getName} is not module-friendly, so patching is needed.")
+
     jar.close()
     false
   }
@@ -112,8 +113,13 @@ object SbtModulePatcher extends AutoPlugin {
     } else {
       new Manifest()
     }
+    // Support both 2.12 or 2.13
+    var idx = jarFile.getName.indexOf("_2.12")
+    if (idx == -1) {
+      idx = jarFile.getName.indexOf("_2.13")
+    }
     val moduleName = jarFile.getName
-      .substring(0, jarFile.getName.indexOf("_2.12"))
+      .substring(0, idx)
       .replaceAll("-", ".")
       .replaceAll("_", ".")
     val attrs = manifestOut.getMainAttributes

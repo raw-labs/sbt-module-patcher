@@ -20,7 +20,7 @@ It will patch the JAR name in the JAR file itself, so that the automatic module 
 
 ## Usage
 
-This plugin currently supports only Scala 2.12.
+This plugin currently supports only Scala 2.12 and 2.13.
 
 Add the plugin to your `project/plugins.sbt` file:
 
