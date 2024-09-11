@@ -32,7 +32,7 @@ object SbtModulePatcher extends AutoPlugin {
           val classpath = dependencyClasspath.value
           val jarFiles =
             classpath.map(_.data).filter(_.getName.endsWith(".jar"))
-          patchJars(jarFiles)
+          patchJars(jarFiles, log)
         },
         compile := (compile dependsOn patchDependencies).value
       )
@@ -47,7 +47,7 @@ object SbtModulePatcher extends AutoPlugin {
     }
   )
 
-  def patchJars(jarFiles: Seq[File]): Unit = {
+  def patchJars(jarFiles: Seq[File], log: Logger): Unit = {
     jarFiles.foreach { jarFile =>
       if (!isModule(jarFile, log)) {
         modifyJar(jarFile, log)
