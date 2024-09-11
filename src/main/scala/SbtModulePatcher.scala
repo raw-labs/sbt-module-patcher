@@ -32,13 +32,7 @@ object SbtModulePatcher extends AutoPlugin {
           val classpath = dependencyClasspath.value
           val jarFiles =
             classpath.map(_.data).filter(_.getName.endsWith(".jar"))
-
-          jarFiles.foreach { jarFile =>
-            if (!isModule(jarFile, log)) {
-              modifyJar(jarFile, log)
-              updateChecksums(jarFile, log)
-            }
-          }
+          patchJars(jarFiles)
         },
         compile := (compile dependsOn patchDependencies).value
       )
@@ -52,6 +46,15 @@ object SbtModulePatcher extends AutoPlugin {
       // This is a default implementation for the task, but it won't be used directly.
     }
   )
+
+  def patchJars(jarFiles: Seq[File]): Unit = {
+    jarFiles.foreach { jarFile =>
+      if (!isModule(jarFile, log)) {
+        modifyJar(jarFile, log)
+        updateChecksums(jarFile, log)
+      }
+    }
+  }
 
   private def isModule(jarFile: File, log: Logger): Boolean = {
     // Support both Scala 2.12 and 2.13
