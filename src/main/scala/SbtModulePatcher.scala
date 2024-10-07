@@ -34,7 +34,8 @@ object SbtModulePatcher extends AutoPlugin {
             classpath.map(_.data).filter(_.getName.endsWith(".jar"))
           patchJars(jarFiles, log)
         },
-        compile := (compile dependsOn patchDependencies).value
+        compile := (compile dependsOn patchDependencies).value,
+        doc := (doc dependsOn patchDependencies).value
       )
     }
   }
