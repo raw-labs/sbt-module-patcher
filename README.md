@@ -1,5 +1,3 @@
-Sure, here's the updated and completed README.md for the `sbt-module-patcher` plugin:
-
 # sbt-module-patcher
 
 This sbt plugin tries to alleviate some of the pain associated with creating JPMS-friendly JARs in the Scala world.
