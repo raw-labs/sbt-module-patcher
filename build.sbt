@@ -33,7 +33,7 @@ licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
 
 name := "sbt-versioner"
 
-scalaVersion := "2.12.18"
+scalaVersion := "2.12.20"
 
 publishMavenStyle := true
 publishTo := Some("GitHub Package Registry" at s"https://maven.pkg.github.com/$githubRepo")
