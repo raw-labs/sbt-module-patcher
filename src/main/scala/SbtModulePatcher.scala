@@ -8,6 +8,10 @@ import scala.collection.JavaConverters._
 import java.security.MessageDigest
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption.{CREATE, WRITE}
+import coursier.cache.FileCache
+import sbt.librarymanagement.{DependencyResolution, UnresolvedWarningConfiguration}
+import coursier.cache.{CacheLogger, FileCache}
+import coursier.util.Task
 
 object SbtModulePatcher extends AutoPlugin {
 
@@ -16,11 +20,35 @@ object SbtModulePatcher extends AutoPlugin {
 
   object autoImport {
     val patchDependencies = taskKey[Unit]("Patch compile dependencies in the project classpath")
+    val modulePatcherVerifyChecksums = settingKey[Boolean]("Verify checksums after patching")
 
     implicit class ProjectOps(p: Project) {
 
       def doPatchDependencies(): Project = {
         p.settings(
+          dependencyResolution := {
+            val orig = dependencyResolution.value
+            new DependencyResolution {
+              def resolve(
+                  dependencies: ModuleID,
+                  configuration: UnresolvedWarningConfiguration,
+                  log: Logger
+              ): UpdateReport = {
+                val report = orig.resolve(dependencies, configuration, log)
+                val jarFiles = report.allFiles.filter(_.getName.endsWith(".jar"))
+                patchJars(jarFiles, log)
+                report
+              }
+            }
+          },
+          csrConfiguration := {
+            val originalConfig = csrConfiguration.value
+            originalConfig.withCache(
+              FileCache()
+                .withLocation(originalConfig.cache.location)
+                .withLogger(new PatchingCacheLogger(streams.value.log))
+            )
+          },
           inConfig(Compile)(patchDependenciesSettings)
         )
       }
@@ -40,6 +68,7 @@ object SbtModulePatcher extends AutoPlugin {
   import autoImport._
 
   override def projectSettings: Seq[Setting[_]] = Seq(
+    modulePatcherVerifyChecksums := true,
     patchDependencies := {
       // This is a default implementation for the task, but it won't be used directly.
     }
@@ -99,6 +128,21 @@ object SbtModulePatcher extends AutoPlugin {
   }
 
   private def modifyJar(jarFile: File, log: Logger): Unit = {
+    // Backup original checksums
+    val originalChecksums = Map(
+      "SHA-1" -> Option(new File(jarFile.getAbsolutePath + ".sha1")).filter(_.exists).map(f => Files.readString(f.toPath).trim),
+      "MD5" -> Option(new File(jarFile.getAbsolutePath + ".md5")).filter(_.exists).map(f => Files.readString(f.toPath).trim)
+    )
+
+    // Store original checksums in manifest
+    val manifest = new Manifest()
+    val attrs = manifest.getMainAttributes
+    originalChecksums.foreach { case (algo, checksumOpt) =>
+      checksumOpt.foreach(checksum =>
+        attrs.putValue(s"Original-$algo-Checksum", checksum)
+      )
+    }
+
     val tempFile = File.createTempFile("temp", ".jar")
     Files.copy(jarFile.toPath, tempFile.toPath, StandardCopyOption.REPLACE_EXISTING)
 
@@ -107,7 +151,6 @@ object SbtModulePatcher extends AutoPlugin {
     val tempJar = File.createTempFile("temp-modified", ".jar")
     val jos = new JarOutputStream(new FileOutputStream(tempJar))
 
-    val manifest = jar.getManifest
     val manifestOut =
       if (manifest != null) {
         manifest
@@ -169,6 +212,49 @@ object SbtModulePatcher extends AutoPlugin {
     }
     inputStream.close()
     messageDigest.digest.map("%02x".format(_)).mkString
+  }
+
+  private def verifyChecksums(jarFile: File, log: Logger): Boolean = {
+    val jar = new JarFile(jarFile)
+    val manifest = jar.getManifest
+
+    if (manifest == null) return true
+
+    val attrs = manifest.getMainAttributes
+    val algorithms = Seq("SHA-1", "MD5")
+
+    algorithms.forall { algo =>
+      val originalChecksum = Option(attrs.getValue(s"Original-$algo-Checksum"))
+      val checksumFile = new File(jarFile.getAbsolutePath + "." + algo.toLowerCase.replace("-", ""))
+
+      if (checksumFile.exists && originalChecksum.isDefined) {
+        val currentChecksum = Files.readString(checksumFile.toPath).trim
+        if (currentChecksum != originalChecksum.get) {
+          log.warn(s"Checksum mismatch detected for ${jarFile.getName} ($algo)")
+          log.warn(s"Original: ${originalChecksum.get}")
+          log.warn(s"Current:  $currentChecksum")
+          false
+        } else true
+      } else true
+    }
+  }
+
+  // Custom cache logger that patches JARs right after download
+  private class PatchingCacheLogger(sbtLog: Logger) extends CacheLogger {
+    def downloadedArtifact(url: String, success: Boolean): Unit = {
+      if (success && url.endsWith(".jar")) {
+        val jarFile = new File(url.stripPrefix("file:"))
+        if (!isModule(jarFile, sbtLog)) {
+          modifyJar(jarFile, sbtLog)
+          updateChecksums(jarFile, sbtLog)
+        }
+      }
+    }
+
+    // Implement other CacheLogger methods as no-ops
+    def downloadingArtifact(url: String): Unit = ()
+    def downloadProgress(url: String, downloaded: Long): Unit = ()
+    def downloadedMetadata(url: String, success: Boolean): Unit = ()
   }
 
 }

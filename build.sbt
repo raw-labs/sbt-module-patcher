@@ -39,3 +39,5 @@ credentials += Credentials(
 )
 publishTo := Some("GitHub Package Registry" at s"https://maven.pkg.github.com/${githubRepo.value}")
 publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
+
+libraryDependencies += "io.get-coursier" %% "coursier-cache" % "2.1.8"
