@@ -1,25 +1,23 @@
 sbtPlugin := true
-
-credentials += Credentials(
-  "GitHub Package Registry",
-  "maven.pkg.github.com",
-  "raw-labs",
-  sys.env.getOrElse("GITHUB_TOKEN", "")
-)
-
 versionScheme := Some("early-semver")
 
-val githubOrg = "raw-labs"
-name := "sbt-module-patcher"
-val githubRepo = s"$githubOrg/${name.value}"
-homepage := Some(url(s"https://github.com/$githubRepo"))
 organization := "com.raw-labs"
 organizationName := "RAW Labs SA"
 organizationHomepage := Some(url("https://www.raw-labs.com/"))
+
+name := "sbt-module-patcher"
+description := "An SBT plugin for patching JARs with proper module names"
+scalaVersion := "2.12.18"
+
+val githubOrg = "raw-labs"
+val githubRepo = settingKey[String]("GitHub repository name")
+githubRepo := s"$githubOrg/${name.value}"
+
+homepage := Some(url(s"https://github.com/${githubRepo.value}"))
 scmInfo := Some(
   ScmInfo(
-    url(s"https://github.com/$githubRepo"),
-    s"scm:git@github.com:$githubRepo.git"
+    url(s"https://github.com/${githubRepo.value}"),
+    s"scm:git@github.com:${githubRepo.value}.git"
   )
 )
 developers := List(
@@ -32,9 +30,12 @@ developers := List(
 )
 licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
 
-scalaVersion := "2.12.18"
-
 publishMavenStyle := true
-publishTo := Some("GitHub Package Registry" at s"https://maven.pkg.github.com/$githubRepo")
-
+credentials += Credentials(
+  "GitHub Package Registry",
+  "maven.pkg.github.com",
+  "raw-labs",
+  sys.env.getOrElse("GITHUB_TOKEN", "")
+)
+publishTo := Some("GitHub Package Registry" at s"https://maven.pkg.github.com/${githubRepo.value}")
 publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
