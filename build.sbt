@@ -41,7 +41,3 @@ publishTo := Some("GitHub Package Registry" at s"https://maven.pkg.github.com/${
 publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
 
 libraryDependencies += "io.get-coursier" %% "coursier-cache" % "2.1.8"
-
-modulePatcherVerifyChecksums := true
-modulePatcherParallel := true
-modulePatcherTimeout := 5.minutes
