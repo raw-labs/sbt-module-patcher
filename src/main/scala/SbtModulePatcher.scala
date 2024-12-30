@@ -12,6 +12,8 @@ import java.security.MessageDigest
 import java.nio.file.StandardOpenOption.{CREATE, WRITE}
 import java.util.concurrent.locks.ReentrantLock
 import scala.concurrent.Await
+import java.lang.Runtime
+import java.io.FileInputStream
 
 object SbtModulePatcher extends AutoPlugin {
   private val SBT_MODULE_PATCHER_VERSION_KEY = "Sbt-Module-Patcher-Version"
@@ -48,9 +50,10 @@ object SbtModulePatcher extends AutoPlugin {
           val jarFiles = report.allFiles.filter(_.getName.endsWith(".jar"))
           val parallel = modulePatcherParallel.value
           val timeout = modulePatcherTimeout.value
+          val shouldVerifyChecksums = modulePatcherVerifyChecksums.value
 
           if (parallel) {
-            val futures = jarFiles.map(f => Future(processJar(f, log)))
+            val futures = jarFiles.map(f => Future(processJar(f, log, shouldVerifyChecksums)))
             try {
               Await.result(Future.sequence(futures), timeout)
             } catch {
@@ -59,7 +62,7 @@ object SbtModulePatcher extends AutoPlugin {
                 throw e
             }
           } else {
-            jarFiles.foreach(f => processJar(f, log))
+            jarFiles.foreach(f => processJar(f, log, shouldVerifyChecksums))
           }
         },
         compile := (compile dependsOn patchDependencies).value
@@ -67,7 +70,7 @@ object SbtModulePatcher extends AutoPlugin {
     }
   }
 
-  private def processJar(jarFile: File, log: Logger): Unit = {
+  private def processJar(jarFile: File, log: Logger, shouldVerifyChecksums: Boolean): Unit = {
     val lock = jarLocks.computeIfAbsent(jarFile.getAbsolutePath, _ => new ReentrantLock())
     if (lock.tryLock()) {
       try {
@@ -76,7 +79,7 @@ object SbtModulePatcher extends AutoPlugin {
           try {
             modifyJar(jarFile, log)
             updateChecksums(jarFile, log)
-            if (modulePatcherVerifyChecksums.value && !verifyChecksums(jarFile, log)) {
+            if (shouldVerifyChecksums && !verifyChecksums(jarFile, log)) {
               restoreFromBackup(jarFile)
               throw new Exception(s"Checksum verification failed for ${jarFile.getName}")
             }
@@ -172,7 +175,7 @@ object SbtModulePatcher extends AutoPlugin {
       } finally {
         jos.close()
       }
-    }.get // propagate exceptions
+    }
 
     log.info(s"Modified JAR ${jarFile.getName} with module name: $moduleName")
   }
@@ -225,20 +228,19 @@ object SbtModulePatcher extends AutoPlugin {
     }
   }
 
-  // Custom cache logger that patches JARs right after download
-  private class PatchingCacheLogger(sbtLog: Logger) extends CacheLogger {
-    override def downloadedArtifact(url: String, success: Boolean): Unit = {
-      if (success && url.endsWith(".jar")) {
-        val jarFile = new File(url.stripPrefix("file:"))
-        if (!isModule(jarFile, sbtLog)) {
-          modifyJar(jarFile, sbtLog)
-          updateChecksums(jarFile, sbtLog)
-        }
-      }
-    }
+  private def isModule(jarFile: File, log: Logger): Boolean = {
+    try {
+      val jar = new JarFile(jarFile)
+      val manifest = jar.getManifest
+      if (manifest == null) return false
 
-    override def downloadingArtifact(url: String): Unit = ()
-    override def downloadProgress(url: String, downloaded: Long): Unit = ()
+      val attrs = manifest.getMainAttributes
+      Option(attrs.getValue(SBT_MODULE_PATCHER_VERSION_KEY)).isDefined
+    } catch {
+      case NonFatal(e) =>
+        log.debug(s"Error checking module status for ${jarFile.getName}: ${e.getMessage}")
+        false
+    }
   }
 
 }
