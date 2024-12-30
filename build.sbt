@@ -10,7 +10,8 @@ credentials += Credentials(
 versionScheme := Some("early-semver")
 
 val githubOrg = "raw-labs"
-val githubRepo = s"$githubOrg/sbt-module-patcher"
+name := "sbt-module-patcher"
+val githubRepo = s"$githubOrg/${name.value}"
 homepage := Some(url(s"https://github.com/$githubRepo"))
 organization := "com.raw-labs"
 organizationName := "RAW Labs SA"
@@ -30,8 +31,6 @@ developers := List(
   )
 )
 licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
-
-name := "sbt-versioner"
 
 scalaVersion := "2.12.18"
 
